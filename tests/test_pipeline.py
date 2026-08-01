@@ -15,6 +15,10 @@ def test_process_contract_writes_index_and_json(store):
     import process_contract as pc; cid = pc.process_contract("contract.pdf"); rows = store["LIST:Contract Index"]; assert len(rows) == 1; assert rows[0]["ContractID"] == cid; assert rows[0]["CurrentValue"] == 100000.0; assert rows[0]["ReviewStatus"] == "Pending"; assert any("contract_" in k for k in store); assert any("ai_run_" in k for k in store)
 def test_process_amendment_rolls_value(store):
     import process_contract as pc; import process_amendment as pa; cid = pc.process_contract("contract.pdf"); pa.process_amendment(cid, 1, "amend.pdf"); assert store["LIST:Contract Index"][-1]["CurrentValue"] == 125000.0; assert len(store["LIST:Amendment Index"]) == 1; assert store["LIST:Amendment Index"][0]["ValueChange"] == 25000.0
+def test_metadata_diff_records_pre_amendment_values(store):
+    import process_contract as pc; import process_amendment as pa; cid = pc.process_contract("contract.pdf"); pa.process_amendment(cid, 1, "amend.pdf")
+    diff = json.loads(next(v for k, v in store.items() if "metadata_diff_" in k))
+    assert diff["ExpirationDate"] == {"old": "2026-01-01", "new": "2027-01-01"}; assert diff["CurrentValue"] == {"old": 100000.0, "new": 125000.0}
 def test_failed_run_writes_record_and_no_index_row(store, monkeypatch):
     import ai_provider; monkeypatch.setattr(ai_provider, "extract_metadata", lambda text: {"attributes": {"Title": ""}, "confidence": 0.9}); import process_contract as pc
     with pytest.raises(Exception): pc.process_contract("contract.pdf")

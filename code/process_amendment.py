@@ -27,9 +27,11 @@ def process_amendment(contract_id: str, amendment_number: int, filename: str) ->
         contract = _load_contract(contract_id); original_clauses = _load_clause_set(contract_id); raw = sp.download_file(f"{amd_folder}/{filename}"); text = extract_text(filename, raw)
         metadata = ai.extract_amendment_metadata(text); modified = ai.detect_modified_clauses(text, original_clauses); confidences = {"Amendment": float(metadata.get("confidence", 0.0)), "Diff": float(modified.get("confidence", 0.0))}
         amendment = Amendment(AmendmentID=amendment_id, ContractID=contract.contract_id, AmendmentNumber=amendment_number, AmendmentDocumentURL=f"{amd_folder}/{filename}", ParentFolderURL=amd_folder, **metadata["attributes"])
-        before_value = contract.current_value; contract.amendments.append(amendment)
-        for alias, new_val in metadata.get("contract_changes", {}).items(): _apply_contract_change(contract, alias, new_val)
-        diff = _build_metadata_diff(contract, metadata.get("contract_changes", {}), before_value)
+        contract_changes = metadata.get("contract_changes", {})
+        # Snapshot values before mutation so the diff records true pre-amendment state.
+        before_value = contract.current_value; old_values = _snapshot_old_values(contract, contract_changes); contract.amendments.append(amendment)
+        for alias, new_val in contract_changes.items(): _apply_contract_change(contract, alias, new_val)
+        diff = _build_metadata_diff(contract, contract_changes, before_value, old_values)
         sp.upload_json(f"{out}/Metadata/amendment_{amendment_id}.json", amendment.model_dump(by_alias=True)); sp.upload_json(f"{out}/Metadata/contract_{contract_id}.json", contract.model_dump(by_alias=True)); sp.upload_json(f"{out}/Metadata/metadata_diff_{amendment_id}.json", diff); sp.upload_json(f"{out}/ClauseExtraction/modified_clauses_{amendment_id}.json", modified)
         sp.upsert_list_item(AMENDMENT_INDEX_LIST, "AmendmentID", amendment.index_row()); c_row = contract.index_row(); c_row["PriorityReview"] = any(v < CONFIDENCE_THRESHOLD for v in confidences.values()); sp.upsert_list_item(CONTRACT_INDEX_LIST, "ContractID", c_row)
         _write_run(out, run_id, contract_id, [ExtractionType.AMENDMENT, ExtractionType.DIFF], confidences, True); return str(amendment_id)
@@ -38,10 +40,12 @@ _ALIAS_TO_ATTR = {"ExpirationDate": "expiration_date", "Status": "status", "Effe
 def _apply_contract_change(contract: Contract, field_alias: str, new_val: Any) -> None:
     attr = _ALIAS_TO_ATTR.get(field_alias)
     if attr: setattr(contract, attr, new_val)
-def _build_metadata_diff(contract: Contract, contract_changes: Dict[str, Any], before_value: float) -> Dict[str, Any]:
+def _snapshot_old_values(contract: Contract, contract_changes: Dict[str, Any]) -> Dict[str, Any]:
+    return {alias: getattr(contract, _ALIAS_TO_ATTR[alias]) if alias in _ALIAS_TO_ATTR else None for alias in contract_changes}
+def _build_metadata_diff(contract: Contract, contract_changes: Dict[str, Any], before_value: float, old_values: Dict[str, Any]) -> Dict[str, Any]:
     diff = {"CurrentValue": {"old": before_value, "new": contract.current_value}}
     for alias, new_val in contract_changes.items():
-        attr = _ALIAS_TO_ATTR.get(alias); old_val = getattr(contract, attr) if attr else None; old_str = old_val.isoformat() if hasattr(old_val, "isoformat") else old_val; diff[alias] = {"old": old_str, "new": new_val}
+        old_val = old_values.get(alias); old_str = old_val.isoformat() if hasattr(old_val, "isoformat") else old_val; diff[alias] = {"old": old_str, "new": new_val}
     return diff
 def _write_run(out_base: str, run_id: uuid.UUID, contract_id: str, types: list, confidences: dict, succeeded: bool, error: Optional[str] = None) -> None:
     run = AIExtractionRun(RunID=run_id, ContractID=contract_id, Timestamp=datetime.now(timezone.utc), ModelVersion=MODEL_VERSION, ExtractionTypes=types, ConfidenceScores=confidences, Succeeded=succeeded); payload = run.model_dump(by_alias=True)
