@@ -64,12 +64,18 @@ def process_contract(filename: str, contract_id: Optional[str] = None) -> str:
         _write_run(out, run_id, contract_id, [ExtractionType.METADATA, ExtractionType.CLAUSES, ExtractionType.TAXONOMY], confidences, True); return contract_id
     except Exception as exc:
         log.exception("Contract processing failed for %s", contract_id)
-        _write_run(out, run_id, contract_id, [ExtractionType.METADATA, ExtractionType.CLAUSES, ExtractionType.TAXONOMY], confidences, False, str(exc)); raise
+        _write_run_safely(out, run_id, contract_id, [ExtractionType.METADATA, ExtractionType.CLAUSES, ExtractionType.TAXONOMY], confidences, False, str(exc)); raise
 def _write_run(out_base: str, run_id: uuid.UUID, contract_id: str, types: List[ExtractionType], confidences: Dict[str, float], succeeded: bool, error: Optional[str] = None) -> None:
     run = AIExtractionRun(RunID=run_id, ContractID=contract_id, Timestamp=datetime.now(timezone.utc), ModelVersion=MODEL_VERSION, ExtractionTypes=types, ConfidenceScores=confidences, Succeeded=succeeded)
     payload = run.model_dump(by_alias=True)
     if error: payload["Error"] = error
     sp.upload_json(f"{out_base}/Metadata/ai_run_{run_id}.json", payload)
+def _write_run_safely(*args: Any, **kwargs: Any) -> None:
+    """Best-effort failure record: it must never replace the exception that caused the failure."""
+    try:
+        _write_run(*args, **kwargs)
+    except Exception:
+        log.exception("Could not write the failure record; reporting the original error instead")
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"); ap = argparse.ArgumentParser(description="Process one contract through the CLM pipeline."); ap.add_argument("--filename", required=True); ap.add_argument("--contract-id", default=None); args = ap.parse_args()
     try: process_contract(args.filename, args.contract_id)

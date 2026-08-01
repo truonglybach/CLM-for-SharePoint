@@ -78,7 +78,21 @@ def test_metadata_diff_records_pre_amendment_values(store):
     diff = json.loads(next(v for k, v in store.items() if "metadata_diff_" in k))
     assert diff["ExpirationDate"] == {"old": "2026-01-01", "new": "2027-01-01"}; assert diff["CurrentValue"] == {"old": 100000.0, "new": 125000.0}
 
+def test_amendment_archives_pre_amendment_contract(store):
+    cid = pc.process_contract("contract.pdf"); pa.process_amendment(cid, 1, "amend.pdf")
+    archived = json.loads(next(v for k, v in store.items() if "/History/contract_" in k))
+    assert archived["ExpirationDate"] == "2026-01-01"; assert archived["CurrentValue"] == 100000.0  # state before the amendment
+    current = json.loads(store[f"/Contracts/{cid}/04_AI_Outputs/Metadata/contract_{cid}.json"])
+    assert current["ExpirationDate"] == "2027-01-01"; assert current["CurrentValue"] == 125000.0
+
 def test_failed_run_writes_record_and_no_index_row(store, monkeypatch):
     monkeypatch.setattr(ai_provider, "extract_metadata", lambda text: {"attributes": {"Title": ""}, "confidence": 0.9})
     with pytest.raises(Exception): pc.process_contract("contract.pdf")
     assert "LIST:Contract Index" not in store; assert any("ai_run_" in k for k in store)
+
+def test_failure_record_write_error_does_not_mask_original(store, monkeypatch):
+    # SharePoint being down must not turn a validation failure into a confusing upload error.
+    monkeypatch.setattr(ai_provider, "extract_metadata", lambda text: {"attributes": {"Title": ""}, "confidence": 0.9})
+    monkeypatch.setattr(sp, "upload_json", lambda p, d: (_ for _ in ()).throw(RuntimeError("SharePoint unavailable")))
+    with pytest.raises(Exception) as excinfo: pc.process_contract("contract.pdf")
+    assert "SharePoint unavailable" not in str(excinfo.value)
