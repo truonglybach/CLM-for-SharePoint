@@ -22,21 +22,26 @@ docs/    reference documentation (SharePoint list/column reference)
 | `code/ai_dummy.py` | Offline placeholder AI backend (no network calls) |
 | `code/ai_schemas.py` | Pydantic models for LLM structured outputs (attributes only, no identity fields) |
 | `code/azure_client.py` | Thin wrapper around Azure OpenAI Structured Outputs |
+| `code/schema.py` | Storage models (contracts, amendments, clause/term maps, extraction runs) |
+| `code/sharepoint_io.py` | SharePoint / Microsoft Graph file and list I/O |
+| `code/ai_extract.py` | Real Azure OpenAI extraction backend |
+| `code/text_extract.py` | Document text extraction |
+| `code/process_contract.py` | Contract ingestion orchestrator |
+| `code/process_amendment.py` | Amendment ingestion orchestrator |
+| `code/provision_lists.py` | Idempotent SharePoint list provisioning |
 | `code/sharepoint_upload_session_patch.py` | Proposed patch for `sharepoint_io.py`: simple vs. resumable upload routing |
 | `docs/LISTS_REFERENCE.md` | Column reference for the three SharePoint index lists |
 
-## Incomplete files
+## Provenance note
 
-This repository was reconstructed from a combined codebase document. The source
-for the following files was truncated in transfer, so they are currently stubs
-that should be replaced with a fresh export from the original repository:
-
-`code/text_extract.py`, `code/process_contract.py`, `code/provision_lists.py`,
-`code/sharepoint_io.py`, `code/process_amendment.py`, `code/ai_extract.py`,
-`code/schema.py`, `tests/test_pipeline.py`
-
-Note that `code/schema.py` (the storage models) is imported by several modules
-and tests, so the test suite will not pass until it is restored.
+This repository was reconstructed from a combined codebase document. Eight
+files whose source was truncated in transfer (`code/schema.py`,
+`code/sharepoint_io.py`, `code/ai_extract.py`, `code/text_extract.py`,
+`code/process_contract.py`, `code/process_amendment.py`,
+`code/provision_lists.py`, `tests/test_pipeline.py`) were later supplied as
+best-effort reconstructions based on visible source snippets, tests, and module
+docstrings — treat them as review-ready code, not a verified byte-for-byte
+recovery of the originals.
 
 ## Setup
 
