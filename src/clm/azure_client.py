@@ -3,15 +3,20 @@ azure_client.py (v2)
 Thin wrapper around Azure OpenAI Structured Outputs.
 """
 from __future__ import annotations
+
 import copy
 import json
+import time
 from typing import Any, Dict, Optional, Type, TypeVar
+
 from pydantic import BaseModel
-from config import settings
+
+from .config import settings
 
 T = TypeVar("T", bound=BaseModel)
 _AOAI_SCOPE = "https://cognitiveservices.azure.com/.default"
 _client = None
+_MAX_RETRIES = 5
 
 def to_strict_schema(model: Type[BaseModel]) -> Dict[str, Any]:
     "Pydantic model -> strict JSON Schema accepted by Structured Outputs."
@@ -77,11 +82,36 @@ def _call(model: Type[T], system: str, user: str, deployment: str,
     }
     if temperature is not None:
         kwargs["temperature"] = temperature
-    resp = client.chat.completions.create(**kwargs)
+    resp = _create_with_retry(client, kwargs)
     choice = resp.choices[0].message
     if getattr(choice, "refusal", None):
         raise RuntimeError(f"Model refused: {choice.refusal}")
     return model.model_validate(json.loads(choice.content))
+
+def _create_with_retry(client: Any, kwargs: Dict[str, Any]) -> Any:
+    "Backoff on 429/5xx/connection errors, mirroring sharepoint_io._request; other errors raise immediately."
+    for attempt in range(_MAX_RETRIES):
+        try:
+            return client.chat.completions.create(**kwargs)
+        except Exception as exc:
+            if not _retryable(exc) or attempt == _MAX_RETRIES - 1:
+                raise
+            time.sleep(_retry_delay(exc, attempt))
+    raise RuntimeError("unreachable")
+
+def _retryable(exc: Exception) -> bool:
+    import openai
+    if isinstance(exc, (openai.APIConnectionError, openai.RateLimitError)):
+        return True
+    return isinstance(exc, openai.APIStatusError) and exc.status_code >= 500
+
+def _retry_delay(exc: Exception, attempt: int) -> float:
+    response = getattr(exc, "response", None)
+    retry_after = response.headers.get("retry-after") if response is not None else None
+    try:
+        return float(retry_after)
+    except (TypeError, ValueError):
+        return min(2 ** attempt, 30)
 
 def extract(model: Type[T], system: str, user: str) -> T:
     return _call(model, system, user, settings.azure_openai_deployment_extract, temperature=0.0)

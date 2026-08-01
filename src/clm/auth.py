@@ -7,11 +7,14 @@ tenant-wide Sites.ReadWrite.All.
 Tokens are cached and reused until shortly before expiry.
 """
 from __future__ import annotations
+
 import time
 from pathlib import Path
 from typing import Optional
+
 import msal
-from config import settings
+
+from .config import settings
 
 _SCOPE = ["https://graph.microsoft.com/.default"]
 _AUTHORITY = f"https://login.microsoftonline.com/{settings.tenant_id}"

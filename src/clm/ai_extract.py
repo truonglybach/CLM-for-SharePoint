@@ -1,8 +1,10 @@
 """Real Azure OpenAI extraction, drop-in for ai_dummy.py."""
 from __future__ import annotations
+
 from typing import Any, Dict, List, Optional
-import azure_client as aoai
-import ai_schemas as S
+
+from . import ai_schemas as S
+from . import azure_client as aoai
 
 _RULES = "You extract structured facts from contract text. Return only supported attributes, never identifiers. Provide verbatim evidence spans. Use null rather than guessing."
 _MAP_RULES = "Map each clause to one supplied candidate term. If no candidate fits or context is ambiguous, set term_id null and ambiguous true."
@@ -54,7 +56,10 @@ def extract_amendment_metadata(text: str) -> Dict[str, Any]:
 def detect_modified_clauses(text: str, original_clauses: Dict[str, Any]) -> Dict[str, Any]:
     user = f"Original clauses:\n{original_clauses.get('clauses')}\n\nAmendment text:\n{text}"
     res = aoai.judge(S.ModifiedClausesExtraction, _RULES, user)
-    return {"modified": [{"ClauseID": mc.clause_id, "ChangeType": mc.change_type, "Note": mc.note, "EvidenceSpan": mc.evidence_span} for mc in res.modified], "confidence": 1.0 if res.modified else 0.0}
+    # An empty list is a confident "nothing changed", not a failed extraction; scoring it
+    # 0.0 forced priority review on every clean amendment. The strict schema already
+    # guarantees shape, so a successful call is scored 1.0 either way.
+    return {"modified": [{"ClauseID": mc.clause_id, "ChangeType": mc.change_type, "Note": mc.note, "EvidenceSpan": mc.evidence_span} for mc in res.modified], "confidence": 1.0}
 
 def judge_clause_pair(clause_a: str, clause_b: str) -> Dict[str, Any]:
     j = aoai.judge(S.ClauseDiffJudgment, _JUDGE_RULES, f"Clause A:\n{clause_a}\n\nClause B:\n{clause_b}")

@@ -1,9 +1,12 @@
 """Validation, value roll-up, and round-trip tests for the storage models."""
 from __future__ import annotations
+
 import uuid
+
 import pytest
 from pydantic import ValidationError
-from schema import Amendment, ClauseTermMap, Contract
+
+from clm.schema import Amendment, ClauseTermMap, Contract
 
 METADATA = {
     "Title": "Sample Vendor Agreement",

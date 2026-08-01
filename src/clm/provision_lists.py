@@ -1,9 +1,13 @@
 """Creates SharePoint Lists that form the CLM query layer."""
 from __future__ import annotations
+
 from typing import Any, Dict, List
+
 import requests
-from auth import get_access_token
-from config import settings
+
+from .auth import get_access_token
+from .config import settings
+
 GRAPH = "https://graph.microsoft.com/v1.0"
 SITE = f"{GRAPH}/sites/{settings.site_id}"
 REVIEW_CHOICES = ["Pending", "Reviewed", "Approved"]

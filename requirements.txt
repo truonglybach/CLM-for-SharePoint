@@ -1,7 +1,10 @@
-pydantic>=2
-pydantic-settings
-openai
-azure-identity
-msal
-requests
-pytest
+# Pinned known-good versions; compatible ranges live in pyproject.toml.
+# Install the project itself with: pip install -e ".[azure,dev]"
+pydantic==2.13.4
+pydantic-settings==2.14.2
+msal==1.37.0
+requests==2.33.1
+openai==2.52.0
+azure-identity==1.25.3
+pytest==9.1.1
+ruff==0.16.1

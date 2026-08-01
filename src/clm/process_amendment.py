@@ -1,13 +1,20 @@
 """Phase-1 amendment orchestrator."""
 from __future__ import annotations
-import argparse, json, logging, sys, uuid
+
+import argparse
+import json
+import logging
+import sys
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-import ai_provider as ai
-import sharepoint_io as sp
-from ai_provider import MODEL_VERSION
-from schema import AIExtractionRun, Amendment, Contract, ExtractionType
-from text_extract import extract_text
+
+from . import ai_provider as ai
+from . import sharepoint_io as sp
+from .ai_provider import MODEL_VERSION
+from .schema import AIExtractionRun, Amendment, Contract, ExtractionType
+from .text_extract import extract_text
+
 log = logging.getLogger(__name__)
 CONFIDENCE_THRESHOLD = 0.85
 CONTRACT_INDEX_LIST = "Contract Index"
