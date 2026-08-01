@@ -1,0 +1,7 @@
+pydantic>=2
+pydantic-settings
+openai
+azure-identity
+msal
+requests
+pytest
