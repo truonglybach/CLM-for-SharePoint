@@ -16,6 +16,7 @@ LISTS = {
     "Contract Index": [text("ContractID"), text("Title"), text("Counterparty"), choice("ContractType", ["Grant", "Vendor", "Subrecipient", "MOU", "Lease", "Other"]), choice("Status", ["Draft", "Active", "Expired", "Terminated"]), datetime_col("EffectiveDate"), datetime_col("ExpirationDate"), number("CurrentValue"), choice("FundingSource", ["Federal", "State", "Local", "Private"]), choice("ReviewStatus", REVIEW_CHOICES), boolean("PriorityReview")],
     "Amendment Index": [text("AmendmentID"), text("ContractID"), number("AmendmentNumber", 0), choice("AmendmentType", ["Extension", "Budget Revision", "Scope Change", "Legal Correction", "Other"]), datetime_col("EffectiveDate"), number("ValueChange"), choice("ReviewStatus", REVIEW_CHOICES)],
     "Clause Map Index": [text("MapID"), text("ContractID"), text("ClauseID"), text("TermID"), number("RelevanceScore"), number("ExtractionConfidence"), choice("ReviewStatus", REVIEW_CHOICES), boolean("PriorityReview")],
+    "Subject Matter Terms": [text("TermID"), text("Domain"), text("TermName"), text("Definition"), text("Synonyms"), text("RegulatorySource")],
 }
 def _headers() -> Dict[str, str]: return {"Authorization": f"Bearer {get_access_token()}", "Content-Type": "application/json"}
 def _existing_lists() -> Dict[str, str]:

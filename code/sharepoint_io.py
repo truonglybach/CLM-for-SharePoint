@@ -1,7 +1,7 @@
 """SharePoint/Graph I/O for the CLM pipeline."""
 from __future__ import annotations
 import json, time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 import requests
 from auth import get_access_token
@@ -89,6 +89,14 @@ def _resumable_upload(sp_path: str, content: bytes, content_type: str = "applica
 def upload_json(sp_path: str, data: Dict[str, Any]) -> Dict[str, Any]: return upload_file(sp_path, json.dumps(data, indent=2, default=str).encode("utf-8"), "application/json")
 def upload_markdown(sp_path: str, text: str) -> Dict[str, Any]: return upload_file(sp_path, text.encode("utf-8"), "text/markdown")
 def _list_items_url(list_name: str) -> str: return f"{_SITE}/lists/{quote(list_name)}/items"
+def list_items(list_name: str) -> List[Dict[str, Any]]:
+    url: Optional[str] = f"{_list_items_url(list_name)}?$expand=fields"
+    items: List[Dict[str, Any]] = []
+    while url:
+        r = _request("GET", url, headers=_auth_header()); r.raise_for_status(); payload = r.json()
+        items.extend(x.get("fields", {}) for x in payload.get("value", []))
+        url = payload.get("@odata.nextLink")
+    return items
 def upsert_list_item(list_name: str, key_field: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     key_value = str(fields[key_field]).replace("'", "''")
     query = f"{_list_items_url(list_name)}?$expand=fields&$filter=fields/{key_field} eq '{key_value}'"

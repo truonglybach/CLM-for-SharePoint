@@ -42,8 +42,26 @@ def _get_client():
         raise RuntimeError("pip install openai for the Azure OpenAI client.") from exc
     if not settings.azure_openai_endpoint:
         raise RuntimeError("Set AZURE_OPENAI_ENDPOINT.")
-    # NOTE: Auth details were truncated in the source provided through chat.
-    raise NotImplementedError("Client initialization was not fully available in the provided source.")
+    if settings.azure_openai_api_key:
+        # Explicit key = local-dev opt-in, mirroring the client-secret fallback in auth.py.
+        _client = AzureOpenAI(
+            azure_endpoint=settings.azure_openai_endpoint,
+            api_key=settings.azure_openai_api_key,
+            api_version=settings.azure_openai_api_version,
+        )
+        return _client
+    try:
+        from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+    except ImportError as exc:
+        raise RuntimeError(
+            "pip install azure-identity for Entra ID auth, or set AZURE_OPENAI_API_KEY."
+        ) from exc
+    _client = AzureOpenAI(
+        azure_endpoint=settings.azure_openai_endpoint,
+        azure_ad_token_provider=get_bearer_token_provider(DefaultAzureCredential(), _AOAI_SCOPE),
+        api_version=settings.azure_openai_api_version,
+    )
+    return _client
 
 def _call(model: Type[T], system: str, user: str, deployment: str,
           temperature: Optional[float] = 0.0) -> T:

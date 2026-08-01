@@ -29,7 +29,6 @@ docs/    reference documentation (SharePoint list/column reference)
 | `code/process_contract.py` | Contract ingestion orchestrator |
 | `code/process_amendment.py` | Amendment ingestion orchestrator |
 | `code/provision_lists.py` | Idempotent SharePoint list provisioning |
-| `code/sharepoint_upload_session_patch.py` | Proposed patch for `sharepoint_io.py`: simple vs. resumable upload routing |
 | `docs/LISTS_REFERENCE.md` | Column reference for the three SharePoint index lists |
 
 ## Provenance note

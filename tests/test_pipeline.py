@@ -15,6 +15,12 @@ def test_process_contract_writes_index_and_json(store):
     import process_contract as pc; cid = pc.process_contract("contract.pdf"); rows = store["LIST:Contract Index"]; assert len(rows) == 1; assert rows[0]["ContractID"] == cid; assert rows[0]["CurrentValue"] == 100000.0; assert rows[0]["ReviewStatus"] == "Pending"; assert any("contract_" in k for k in store); assert any("ai_run_" in k for k in store)
 def test_process_amendment_rolls_value(store):
     import process_contract as pc; import process_amendment as pa; cid = pc.process_contract("contract.pdf"); pa.process_amendment(cid, 1, "amend.pdf"); assert store["LIST:Contract Index"][-1]["CurrentValue"] == 125000.0; assert len(store["LIST:Amendment Index"]) == 1; assert store["LIST:Amendment Index"][0]["ValueChange"] == 25000.0
+def test_candidate_terms_loaded_and_forwarded_to_mapper(store, monkeypatch):
+    sys.modules["sharepoint_io"].list_items = lambda ln: ([{"TermID": "PROGRAM_EXIT", "TermName": "Program Exit", "Domain": "HHS", "Definition": "", "Synonyms": "exit; discharge"}] if ln == "Subject Matter Terms" else [])
+    import ai_provider; captured = {}; orig = ai_provider.map_subject_terms
+    monkeypatch.setattr(ai_provider, "map_subject_terms", lambda text, clauses, candidate_terms=None: captured.__setitem__("terms", candidate_terms) or orig(text, clauses, candidate_terms))
+    import process_contract as pc; pc.process_contract("contract.pdf")
+    assert captured["terms"] == [{"TermID": "PROGRAM_EXIT", "TermName": "Program Exit", "Domain": "HHS", "Definition": "", "Synonyms": ["exit", "discharge"]}]
 def test_metadata_diff_records_pre_amendment_values(store):
     import process_contract as pc; import process_amendment as pa; cid = pc.process_contract("contract.pdf"); pa.process_amendment(cid, 1, "amend.pdf")
     diff = json.loads(next(v for k, v in store.items() if "metadata_diff_" in k))

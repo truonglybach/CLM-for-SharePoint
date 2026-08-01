@@ -2,7 +2,7 @@
 from __future__ import annotations
 import argparse, logging, sys, uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import ai_provider as ai
 import sharepoint_io as sp
 from ai_provider import MODEL_VERSION
@@ -12,11 +12,25 @@ log = logging.getLogger(__name__)
 CONFIDENCE_THRESHOLD = 0.85
 CONTRACT_INDEX_LIST = "Contract Index"
 CLAUSE_MAP_LIST = "Clause Map Index"
+SUBJECT_TERMS_LIST = "Subject Matter Terms"
+def _load_candidate_terms() -> List[Dict[str, Any]]:
+    """Load the taxonomy the mapper grounds against; without it the real backend abstains on every clause."""
+    try:
+        items = sp.list_items(SUBJECT_TERMS_LIST)
+    except Exception as exc:
+        log.warning("Could not load candidate terms from %s: %s", SUBJECT_TERMS_LIST, exc); return []
+    terms: List[Dict[str, Any]] = []
+    for fields in items:
+        if not fields.get("TermID"): continue
+        syn = fields.get("Synonyms") or []
+        if isinstance(syn, str): syn = [s.strip() for s in syn.split(";") if s.strip()]
+        terms.append({"TermID": fields["TermID"], "TermName": fields.get("TermName", ""), "Domain": fields.get("Domain", ""), "Definition": fields.get("Definition", ""), "Synonyms": syn})
+    return terms
 def process_contract(filename: str, contract_id: Optional[str] = None) -> str:
     contract_id = contract_id or str(uuid.uuid4()); run_id = uuid.uuid4(); root = sp.ensure_contract_folder_structure(contract_id); out = f"{root}/04_AI_Outputs"; confidences: Dict[str, float] = {}
     try:
         raw = sp.download_file(f"{root}/01_Original/{filename}"); text = extract_text(filename, raw)
-        metadata = ai.extract_metadata(text); clauses = ai.extract_clauses(text); mappings = ai.map_subject_terms(text, clauses)
+        metadata = ai.extract_metadata(text); clauses = ai.extract_clauses(text); mappings = ai.map_subject_terms(text, clauses, _load_candidate_terms())
         confidences = {"Metadata": float(metadata.get("confidence", 0.0)), "Clauses": float(clauses.get("confidence", 0.0)), "Taxonomy": float(mappings.get("confidence", 0.0))}
         priority_review = any(v < CONFIDENCE_THRESHOLD for v in confidences.values())
         contract = Contract(ContractID=contract_id, PrimaryDocumentURL=f"{root}/01_Original/{filename}", ParentFolderURL=root, **metadata["attributes"])
