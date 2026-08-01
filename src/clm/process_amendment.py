@@ -36,13 +36,20 @@ def process_amendment(contract_id: str, amendment_number: int, filename: str) ->
         amendment = Amendment(AmendmentID=amendment_id, ContractID=contract.contract_id, AmendmentNumber=amendment_number, AmendmentDocumentURL=f"{amd_folder}/{filename}", ParentFolderURL=amd_folder, **metadata["attributes"])
         contract_changes = metadata.get("contract_changes", {})
         # Snapshot values before mutation so the diff records true pre-amendment state.
-        before_value = contract.current_value; old_values = _snapshot_old_values(contract, contract_changes); contract.amendments.append(amendment)
+        before_value = contract.current_value; old_values = _snapshot_old_values(contract, contract_changes); prior_contract = contract.model_dump(by_alias=True); contract.amendments.append(amendment)
         for alias, new_val in contract_changes.items(): _apply_contract_change(contract, alias, new_val)
         diff = _build_metadata_diff(contract, contract_changes, before_value, old_values)
+        _archive_prior_contract(out, contract_id, amendment_id, prior_contract)
         sp.upload_json(f"{out}/Metadata/amendment_{amendment_id}.json", amendment.model_dump(by_alias=True)); sp.upload_json(f"{out}/Metadata/contract_{contract_id}.json", contract.model_dump(by_alias=True)); sp.upload_json(f"{out}/Metadata/metadata_diff_{amendment_id}.json", diff); sp.upload_json(f"{out}/ClauseExtraction/modified_clauses_{amendment_id}.json", modified)
         sp.upsert_list_item(AMENDMENT_INDEX_LIST, "AmendmentID", amendment.index_row()); c_row = contract.index_row(); c_row["PriorityReview"] = any(v < CONFIDENCE_THRESHOLD for v in confidences.values()); sp.upsert_list_item(CONTRACT_INDEX_LIST, "ContractID", c_row)
         _write_run(out, run_id, contract_id, [ExtractionType.AMENDMENT, ExtractionType.DIFF], confidences, True); return str(amendment_id)
-    except Exception as exc: log.exception("Amendment processing failed for contract %s amendment %s", contract_id, amendment_number); _write_run(out, run_id, contract_id, [ExtractionType.AMENDMENT, ExtractionType.DIFF], confidences, False, str(exc)); raise
+    except Exception as exc:
+        log.exception("Amendment processing failed for contract %s amendment %s", contract_id, amendment_number)
+        _write_run_safely(out, run_id, contract_id, [ExtractionType.AMENDMENT, ExtractionType.DIFF], confidences, False, str(exc)); raise
+def _archive_prior_contract(out_base: str, contract_id: str, amendment_id: uuid.UUID, prior: Dict[str, Any]) -> None:
+    """Preserve the pre-amendment contract JSON, which this run is about to overwrite."""
+    sp.ensure_folder(f"{out_base}/Metadata/History")
+    sp.upload_json(f"{out_base}/Metadata/History/contract_{contract_id}_pre_{amendment_id}.json", prior)
 _ALIAS_TO_ATTR = {"ExpirationDate": "expiration_date", "Status": "status", "EffectiveDate": "effective_date", "AutoRenewal": "auto_renewal"}
 def _apply_contract_change(contract: Contract, field_alias: str, new_val: Any) -> None:
     attr = _ALIAS_TO_ATTR.get(field_alias)
@@ -58,6 +65,12 @@ def _write_run(out_base: str, run_id: uuid.UUID, contract_id: str, types: list, 
     run = AIExtractionRun(RunID=run_id, ContractID=contract_id, Timestamp=datetime.now(timezone.utc), ModelVersion=MODEL_VERSION, ExtractionTypes=types, ConfidenceScores=confidences, Succeeded=succeeded); payload = run.model_dump(by_alias=True)
     if error: payload["Error"] = error
     sp.upload_json(f"{out_base}/Metadata/ai_run_{run_id}.json", payload)
+def _write_run_safely(*args: Any, **kwargs: Any) -> None:
+    """Best-effort failure record: it must never replace the exception that caused the failure."""
+    try:
+        _write_run(*args, **kwargs)
+    except Exception:
+        log.exception("Could not write the failure record; reporting the original error instead")
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"); ap = argparse.ArgumentParser(description="Process one amendment through the CLM pipeline."); ap.add_argument("--contract-id", required=True); ap.add_argument("--amendment-number", required=True, type=int); ap.add_argument("--filename", required=True); args = ap.parse_args()
     try: process_amendment(args.contract_id, args.amendment_number, args.filename)

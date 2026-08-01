@@ -179,6 +179,11 @@ class Modality(str, Enum):
     MAY = "may"
     MUST_NOT = "must_not"
 
+class ClauseChangeType(str, Enum):
+    ADDED = "Added"
+    REMOVED = "Removed"
+    MODIFIED = "Modified"
+
 class RelationshipType(str, Enum):
     IDENTICAL = "identical"
     STRICTER = "stricter"

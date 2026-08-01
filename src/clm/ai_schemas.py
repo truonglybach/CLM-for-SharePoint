@@ -18,7 +18,14 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from .schema import AmendmentType, ContractStatus, ContractType, FundingSource
+from .schema import (
+    AmendmentType,
+    ClauseChangeType,
+    ContractStatus,
+    ContractType,
+    FundingSource,
+    RelationshipType,
+)
 
 
 class _Extraction(BaseModel):
@@ -76,7 +83,7 @@ class AmendmentExtraction(_Extraction):
 
 class ClauseDiffJudgment(_Extraction):
     canonical_requirement: str
-    relationship: str = Field(description="identical | stricter | looser | superset | subset | related | conflicting")
+    relationship: RelationshipType
     intensity_a: Optional[str]
     intensity_b: Optional[str]
     rationale: str
@@ -85,7 +92,7 @@ class ClauseDiffJudgment(_Extraction):
 
 class ModifiedClause(_Extraction):
     clause_id: str
-    change_type: str = Field(description="Added | Removed | Modified")
+    change_type: ClauseChangeType
     note: str
     evidence_span: str
 
