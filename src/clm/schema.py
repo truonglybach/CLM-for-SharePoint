@@ -1,9 +1,11 @@
 """CLM schema (v2) — validated Pydantic models."""
 from __future__ import annotations
+
 from datetime import date, datetime
 from enum import Enum
 from typing import Any, Optional
 from uuid import UUID
+
 from pydantic import BaseModel, Field, computed_field
 
 SCHEMA_VERSION = "2.0"

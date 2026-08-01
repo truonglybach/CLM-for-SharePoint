@@ -8,9 +8,12 @@ an Azure Function) over a client secret. A secret is included only as a
 fallback for local Phase-1 development.
 """
 from __future__ import annotations
+
 from typing import Optional
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

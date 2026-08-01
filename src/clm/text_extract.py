@@ -1,7 +1,10 @@
 """Shared document-to-text extraction with local OCR fallback."""
 from __future__ import annotations
-import io, logging
+
+import io
+import logging
 from pathlib import Path
+
 log = logging.getLogger(__name__)
 _MIN_TEXT_CHARS = 20
 _OCR_DPI = 300

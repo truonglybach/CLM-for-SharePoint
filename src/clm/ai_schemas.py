@@ -13,9 +13,13 @@ Dates are plain strings here (ISO 8601). The orchestrator validates them into
 real date types when it builds the storage models.
 """
 from __future__ import annotations
+
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
-from schema import AmendmentType, ContractStatus, ContractType, FundingSource
+
+from .schema import AmendmentType, ContractStatus, ContractType, FundingSource
+
 
 class _Extraction(BaseModel):
     # No defaults: strict Structured Outputs requires every property present.

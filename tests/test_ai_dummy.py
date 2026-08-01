@@ -1,8 +1,11 @@
 """The dummy backend must match the shapes ai_extract produces and feed validation."""
 from __future__ import annotations
+
 import uuid
-import ai_dummy
-from schema import ClauseTermMap
+
+from clm import ai_dummy
+from clm.schema import ClauseTermMap
+
 
 def test_metadata_attributes_only_no_identity_fields():
     res = ai_dummy.extract_metadata("text")

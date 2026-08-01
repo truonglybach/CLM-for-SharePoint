@@ -1,11 +1,16 @@
 """SharePoint/Graph I/O for the CLM pipeline."""
 from __future__ import annotations
-import json, time
+
+import json
+import time
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
+
 import requests
-from auth import get_access_token
-from config import settings
+
+from .auth import get_access_token
+from .config import settings
+
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 _DRIVE = f"{GRAPH_BASE}/sites/{settings.site_id}/drives/{settings.drive_id}"
 _SITE = f"{GRAPH_BASE}/sites/{settings.site_id}"
@@ -97,11 +102,20 @@ def list_items(list_name: str) -> List[Dict[str, Any]]:
         items.extend(x.get("fields", {}) for x in payload.get("value", []))
         url = payload.get("@odata.nextLink")
     return items
-def upsert_list_item(list_name: str, key_field: str, fields: Dict[str, Any]) -> Dict[str, Any]:
-    key_value = str(fields[key_field]).replace("'", "''")
-    query = f"{_list_items_url(list_name)}?$expand=fields&$filter=fields/{key_field} eq '{key_value}'"
+def query_list_items(list_name: str, field: str, value: Any) -> List[Dict[str, Any]]:
+    "All items whose fields/<field> equals value; each item carries its Graph id and expanded fields."
+    escaped = str(value).replace("'", "''")
+    url: Optional[str] = f"{_list_items_url(list_name)}?$expand=fields&$filter=fields/{field} eq '{escaped}'"
     headers = _auth_header(); headers["Prefer"] = "HonorNonIndexedQueriesWarningMayFailRandomly"
-    existing = _request("GET", query, headers=headers); existing.raise_for_status(); matches = existing.json().get("value", [])
+    items: List[Dict[str, Any]] = []
+    while url:
+        r = _request("GET", url, headers=headers); r.raise_for_status(); payload = r.json()
+        items.extend(payload.get("value", [])); url = payload.get("@odata.nextLink")
+    return items
+def delete_list_item(list_name: str, item_id: str) -> None:
+    r = _request("DELETE", f"{_list_items_url(list_name)}/{item_id}", headers=_auth_header(None)); r.raise_for_status()
+def upsert_list_item(list_name: str, key_field: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+    matches = query_list_items(list_name, key_field, fields[key_field])
     if matches:
         item_id = matches[0]["id"]
         r = _request("PATCH", f"{_list_items_url(list_name)}/{item_id}/fields", headers=_auth_header(), json=fields); r.raise_for_status(); return r.json() if r.content else {}

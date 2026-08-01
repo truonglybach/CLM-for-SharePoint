@@ -4,7 +4,9 @@ Placeholder AI so the SharePoint + schema wiring can be tested before the real
 Azure OpenAI calls exist. The AI returns ATTRIBUTES ONLY, never identity fields.
 """
 from __future__ import annotations
+
 from typing import Any, Dict
+
 
 def extract_metadata(text: str) -> Dict[str, Any]:
     return {

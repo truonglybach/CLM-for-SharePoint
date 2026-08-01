@@ -9,15 +9,17 @@ orchestrators are agnostic to which one is active. MODEL_VERSION is derived from
 the active backend so it lands correctly in each AIExtractionRun record.
 """
 from __future__ import annotations
+
 from typing import Any, Dict, List, Optional
-from config import settings
+
+from .config import settings
 
 if settings.use_dummy_ai:
-    import ai_dummy as _backend
+    from . import ai_dummy as _backend
     MODEL_VERSION = "dummy-v0"
 else:
-    import ai_extract as _backend
-    from azure_client import which_models
+    from . import ai_extract as _backend
+    from .azure_client import which_models
     _m = which_models()
     MODEL_VERSION = f"extract={_m['extract']};judge={_m['judge']}"
 

@@ -1,18 +1,36 @@
 """Phase-1 contract orchestrator."""
 from __future__ import annotations
-import argparse, logging, sys, uuid
+
+import argparse
+import logging
+import sys
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-import ai_provider as ai
-import sharepoint_io as sp
-from ai_provider import MODEL_VERSION
-from schema import AIExtractionRun, ClauseTermMap, Contract, ExtractionType
-from text_extract import extract_text
+
+from . import ai_provider as ai
+from . import sharepoint_io as sp
+from .ai_provider import MODEL_VERSION
+from .schema import AIExtractionRun, ClauseTermMap, Contract, ExtractionType
+from .text_extract import extract_text
+
 log = logging.getLogger(__name__)
 CONFIDENCE_THRESHOLD = 0.85
 CONTRACT_INDEX_LIST = "Contract Index"
 CLAUSE_MAP_LIST = "Clause Map Index"
 SUBJECT_TERMS_LIST = "Subject Matter Terms"
+_MAP_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "clm-for-sharepoint/clause-term-map")
+def _map_id(contract_id: str, clause_id: str, term_id: str) -> uuid.UUID:
+    """Deterministic MapID so reprocessing a contract upserts the same rows instead of appending duplicates."""
+    return uuid.uuid5(_MAP_NAMESPACE, f"{contract_id}|{clause_id}|{term_id}")
+def _delete_stale_mappings(contract_id: str, keep_map_ids: set) -> None:
+    """Remove Clause Map Index rows from earlier runs that this run no longer produced."""
+    try:
+        for item in sp.query_list_items(CLAUSE_MAP_LIST, "ContractID", contract_id):
+            if item.get("fields", {}).get("MapID") not in keep_map_ids:
+                sp.delete_list_item(CLAUSE_MAP_LIST, item["id"])
+    except Exception as exc:
+        log.warning("Stale-mapping cleanup failed for %s (rows from prior runs may linger): %s", contract_id, exc)
 def _load_candidate_terms() -> List[Dict[str, Any]]:
     """Load the taxonomy the mapper grounds against; without it the real backend abstains on every clause."""
     try:
@@ -38,9 +56,11 @@ def process_contract(filename: str, contract_id: Optional[str] = None) -> str:
         sp.upload_json(f"{out}/Metadata/metadata_evidence_{run_id}.json", {"ContractID": contract_id, "RunID": str(run_id), "Evidence": metadata.get("evidence", [])})
         sp.upload_json(f"{out}/ClauseExtraction/clauses_{contract_id}.json", clauses); sp.upload_json(f"{out}/ClauseExtraction/taxonomy_mappings_{contract_id}.json", mappings)
         row = contract.index_row(); row["PriorityReview"] = priority_review; sp.upsert_list_item(CONTRACT_INDEX_LIST, "ContractID", row)
+        current_map_ids = set()
         for m in mappings.get("mappings", []):
-            cm = ClauseTermMap(MapID=uuid.uuid4(), ContractID=contract.contract_id, ClauseID=m["ClauseID"], TermID=m["TermID"], RelevanceScore=m["RelevanceScore"], ExtractionConfidence=m["ExtractionConfidence"], Notes=m.get("Notes", ""))
-            sp.upsert_list_item(CLAUSE_MAP_LIST, "MapID", cm.index_row(priority_review=cm.extraction_confidence < CONFIDENCE_THRESHOLD))
+            cm = ClauseTermMap(MapID=_map_id(contract_id, m["ClauseID"], m["TermID"]), ContractID=contract.contract_id, ClauseID=m["ClauseID"], TermID=m["TermID"], RelevanceScore=m["RelevanceScore"], ExtractionConfidence=m["ExtractionConfidence"], Notes=m.get("Notes", ""))
+            current_map_ids.add(str(cm.map_id)); sp.upsert_list_item(CLAUSE_MAP_LIST, "MapID", cm.index_row(priority_review=cm.extraction_confidence < CONFIDENCE_THRESHOLD))
+        _delete_stale_mappings(contract_id, current_map_ids)
         _write_run(out, run_id, contract_id, [ExtractionType.METADATA, ExtractionType.CLAUSES, ExtractionType.TAXONOMY], confidences, True); return contract_id
     except Exception as exc:
         log.exception("Contract processing failed for %s", contract_id)
